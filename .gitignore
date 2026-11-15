@@ -39,3 +39,6 @@ Thumbs.db
 # Temporary test artifacts
 coverage/
 .system_generated/
+__pycache__/
+*.pyc
+.pytest_cache/
