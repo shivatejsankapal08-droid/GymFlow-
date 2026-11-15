@@ -1,0 +1,89 @@
+{
+  "name": "GymFlow AI - Daily 9 PM Gym Owner Executive Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 21 * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-schedule-daily-report",
+      "name": "Schedule: Daily at 9:00 PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.GYMFLOW_API_URL || 'http://localhost:5000'}}/api/automation/daily-report",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.GYMFLOW_AUTOMATION_SECRET || 'gymflow_secret_key_2026'}}"
+            }
+          ]
+        }
+      },
+      "id": "node-generate-daily-report",
+      "name": "GymFlow API: Aggregate Daily Metrics & Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.GYMFLOW_API_URL || 'http://localhost:5000'}}/api/automation/log-dispatch",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"notificationType\": \"owner_daily_report\",\n  \"status\": \"delivered\",\n  \"messageBody\": \"Daily 9:00 PM Executive Briefing delivered to gym owner: ₹\" + $json.report.today_revenue + \" revenue collected, \" + $json.report.today_checkins + \" check-ins.\",\n  \"payload\": $json.report\n}"
+      },
+      "id": "node-log-daily-report",
+      "name": "GymFlow API: Audit Executive Digest Telemetry",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [740, 300]
+    }
+  ],
+  "connections": {
+    "Schedule: Daily at 9:00 PM": {
+      "main": [
+        [
+          {
+            "node": "GymFlow API: Aggregate Daily Metrics & Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GymFlow API: Aggregate Daily Metrics & Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "GymFlow API: Audit Executive Digest Telemetry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

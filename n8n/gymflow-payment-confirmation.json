@@ -1,0 +1,131 @@
+{
+  "name": "GymFlow AI - Verified Payment Confirmation & Tax Invoice",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "gymflow-payment-completed",
+        "options": {}
+      },
+      "id": "node-payment-webhook",
+      "name": "Webhook: payment.verified",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "gymflow-payment-completed"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-payment-status",
+              "leftValue": "={{$json.body.paymentStatus}}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "node-verify-payment-status",
+      "name": "Strict Verification Gate: Backend Status = Completed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/{{$env.WHATSAPP_PHONE_ID}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.WHATSAPP_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"{{$json.body.memberPhone}}\",\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"gymflow_payment_verified\",\n    \"language\": { \"code\": \"en\" },\n    \"components\": [\n      {\n        \"type\": \"body\",\n        \"parameters\": [\n          { \"type\": \"text\", \"text\": \"{{$json.body.memberName}}\" },\n          { \"type\": \"text\", \"text\": \"{{$json.body.gymName}}\" },\n          { \"type\": \"text\", \"text\": \"₹\" + {{$json.body.amount}} },\n          { \"type\": \"text\", \"text\": \"{{$json.body.planName}}\" }\n        ]\n      }\n    ]\n  }\n}"
+      },
+      "id": "node-send-receipt-whatsapp",
+      "name": "WhatsApp Cloud API: Dispatch Tax Invoice & Receipt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [740, 240]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.GYMFLOW_API_URL || 'http://localhost:5000'}}/api/automation/log-dispatch",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"memberId\": \"{{$('Webhook: payment.verified').item.json.body.memberId}}\",\n  \"notificationType\": \"payment_verified\",\n  \"recipient\": \"{{$('Webhook: payment.verified').item.json.body.memberPhone}}\",\n  \"recipientName\": \"{{$('Webhook: payment.verified').item.json.body.memberName}}\",\n  \"templateName\": \"gymflow_payment_verified\",\n  \"status\": \"delivered\",\n  \"messageBody\": \"Payment receipt dispatched for ₹\" + $('Webhook: payment.verified').item.json.body.amount,\n  \"payload\": $('Webhook: payment.verified').item.json.body\n}"
+      },
+      "id": "node-log-payment-telemetry",
+      "name": "GymFlow API: Audit Payment Notification Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [980, 240]
+    }
+  ],
+  "connections": {
+    "Webhook: payment.verified": {
+      "main": [
+        [
+          {
+            "node": "Strict Verification Gate: Backend Status = Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Strict Verification Gate: Backend Status = Completed": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Cloud API: Dispatch Tax Invoice & Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Cloud API: Dispatch Tax Invoice & Receipt": {
+      "main": [
+        [
+          {
+            "node": "GymFlow API: Audit Payment Notification Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

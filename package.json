@@ -1,0 +1,28 @@
+{
+  "name": "gymflow-ai",
+  "version": "1.0.0",
+  "description": "GymFlow AI — Smart Gym Management. Powered by AI.",
+  "scripts": {
+    "start": "node start-dev.js",
+    "dev": "node start-dev.js",
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "test": "node run_all_tests.js",
+    "test:all": "node run_all_tests.js",
+    "test:production": "node test_production_verification_suite.js",
+    "test:attendance": "node test_attendance_suite.js",
+    "test:members": "node test_member_management_suite.js",
+    "test:saas": "node test_multi_gym_saas_suite.js",
+    "test:auth": "node test_auth_suite.js",
+    "test:database": "node test_database_schema_suite.js"
+  },
+  "keywords": [
+    "gym-management",
+    "saas",
+    "multi-tenant",
+    "react",
+    "express",
+    "supabase"
+  ],
+  "author": "GymFlow AI Team",
+  "license": "ISC"
+}

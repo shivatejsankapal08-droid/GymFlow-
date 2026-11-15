@@ -1,0 +1,135 @@
+{
+  "name": "GymFlow AI - Automated Member Birthday Greetings",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-schedule-birthday",
+      "name": "Schedule: Daily at 8:00 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.GYMFLOW_API_URL || 'http://localhost:5000'}}/api/automation/trigger/birthday_wishes",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.GYMFLOW_AUTOMATION_SECRET || 'gymflow_secret_key_2026'}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source\": \"n8n_birthday_cron\"\n}"
+      },
+      "id": "node-trigger-birthdays",
+      "name": "GymFlow API: Match Birthdays & Verify WhatsApp Consent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-birthday-sent",
+              "leftValue": "={{$json.result.sentCount}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "node-check-birthdays-sent",
+      "name": "Any Birthdays Today?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.GYMFLOW_API_URL || 'http://localhost:5000'}}/api/automation/log-dispatch",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"notificationType\": \"birthday_wish\",\n  \"status\": \"delivered\",\n  \"messageBody\": \"Dispatched \" + $json.result.sentCount + \" personalized birthday wishes with protein shake vouchers.\",\n  \"payload\": $json.result\n}"
+      },
+      "id": "node-log-birthday-telemetry",
+      "name": "GymFlow API: Audit Birthday Delivery Logs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 240]
+    }
+  ],
+  "connections": {
+    "Schedule: Daily at 8:00 AM": {
+      "main": [
+        [
+          {
+            "node": "GymFlow API: Match Birthdays & Verify WhatsApp Consent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GymFlow API: Match Birthdays & Verify WhatsApp Consent": {
+      "main": [
+        [
+          {
+            "node": "Any Birthdays Today?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Birthdays Today?": {
+      "main": [
+        [
+          {
+            "node": "GymFlow API: Audit Birthday Delivery Logs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

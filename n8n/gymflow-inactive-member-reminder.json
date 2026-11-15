@@ -1,0 +1,96 @@
+{
+  "name": "GymFlow AI - Inactive Member Retention Scanner (> 7 Days Absent)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "node-schedule-weekly",
+      "name": "Schedule: Mondays at 10:00 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.GYMFLOW_API_URL || 'http://localhost:5000'}}/api/automation/trigger/inactive_member_reminder",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.GYMFLOW_AUTOMATION_SECRET || 'gymflow_secret_key_2026'}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"inactiveDaysThreshold\": 7\n}"
+      },
+      "id": "node-trigger-inactive-scan",
+      "name": "GymFlow API: Scan Inactive Athletes (> 7 Days)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.GYMFLOW_API_URL || 'http://localhost:5000'}}/api/automation/log-dispatch",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"notificationType\": \"inactive_reminder\",\n  \"status\": \"delivered\",\n  \"messageBody\": \"Weekly retention scan processed: Sent \" + $json.result.sentCount + \" re-engagement messages.\",\n  \"payload\": $json.result\n}"
+      },
+      "id": "node-log-inactive-telemetry",
+      "name": "GymFlow API: Audit Inactive Member Retention",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [740, 300]
+    }
+  ],
+  "connections": {
+    "Schedule: Mondays at 10:00 AM": {
+      "main": [
+        [
+          {
+            "node": "GymFlow API: Scan Inactive Athletes (> 7 Days)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GymFlow API: Scan Inactive Athletes (> 7 Days)": {
+      "main": [
+        [
+          {
+            "node": "GymFlow API: Audit Inactive Member Retention",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

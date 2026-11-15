@@ -1,0 +1,135 @@
+{
+  "name": "GymFlow AI - Membership Expiry Reminders (7d, 3d, 1d, 0d)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-schedule-expiry",
+      "name": "Schedule: Daily at 9:00 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.GYMFLOW_API_URL || 'http://localhost:5000'}}/api/automation/trigger/expiry_reminder",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.GYMFLOW_AUTOMATION_SECRET || 'gymflow_secret_key_2026'}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source\": \"n8n_daily_cron\",\n  \"stages\": [7, 3, 1, 0]\n}"
+      },
+      "id": "node-trigger-expiry",
+      "name": "GymFlow API: Scan Expiries & Dispatch WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-sent-count",
+              "leftValue": "={{$json.result.sentCount}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "node-check-reminders-sent",
+      "name": "Check Reminders Dispatched",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.GYMFLOW_API_URL || 'http://localhost:5000'}}/api/automation/log-dispatch",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"notificationType\": \"expiry_reminder\",\n  \"status\": \"delivered\",\n  \"messageBody\": \"n8n Cron Executed: Dispatched \" + $json.result.sentCount + \" expiry reminders. Skipped \" + $json.result.skippedDuplicateCount + \" duplicates.\",\n  \"payload\": $json.result\n}"
+      },
+      "id": "node-log-cron-telemetry",
+      "name": "GymFlow API: Audit Execution Telemetry",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 240]
+    }
+  ],
+  "connections": {
+    "Schedule: Daily at 9:00 AM": {
+      "main": [
+        [
+          {
+            "node": "GymFlow API: Scan Expiries & Dispatch WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GymFlow API: Scan Expiries & Dispatch WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Check Reminders Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Reminders Dispatched": {
+      "main": [
+        [
+          {
+            "node": "GymFlow API: Audit Execution Telemetry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

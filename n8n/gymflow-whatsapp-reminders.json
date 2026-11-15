@@ -1,0 +1,151 @@
+{
+  "name": "GymFlow AI - WhatsApp Membership Expiry & Renewal Reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-cron-trigger",
+      "name": "Schedule: Daily at 9:00 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.GYMFLOW_API_URL || 'http://localhost:5000'}}/api/automation/expiring-members",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.GYMFLOW_AUTOMATION_SECRET || 'gymflow_secret_key_2026'}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-fetch-expiring",
+      "name": "GymFlow API: Fetch Members Expiring in 3 Days",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data.members",
+        "options": {}
+      },
+      "id": "node-split-members",
+      "name": "Split Member List",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 1,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v19.0/{{$json.whatsappPhoneId || $env.WHATSAPP_PHONE_ID}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.WHATSAPP_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"recipient_type\": \"individual\",\n  \"to\": \"{{$json.phone}}\",\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"gym_membership_expiry_reminder\",\n    \"language\": { \"code\": \"en\" },\n    \"components\": [\n      {\n        \"type\": \"body\",\n        \"parameters\": [\n          { \"type\": \"text\", \"text\": \"{{$json.fullName}}\" },\n          { \"type\": \"text\", \"text\": \"{{$json.gymName}}\" },\n          { \"type\": \"text\", \"text\": \"{{$json.daysRemaining}}\" },\n          { \"type\": \"text\", \"text\": \"{{$json.renewalLink}}\" }\n        ]\n      }\n    ]\n  }\n}"
+      },
+      "id": "node-send-whatsapp",
+      "name": "WhatsApp Cloud API: Send Renewal Notice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [950, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GYMFLOW_API_URL || 'http://localhost:5000'}}/api/automation/log-dispatch",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.GYMFLOW_AUTOMATION_SECRET || 'gymflow_secret_key_2026'}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"gymId\": \"{{$json.gymId}}\",\n  \"workflowName\": \"WhatsApp Expiry Reminder\",\n  \"triggerEvent\": \"membership.expiring_soon\",\n  \"targetRecipient\": \"{{$json.phone}}\",\n  \"channel\": \"whatsapp\",\n  \"status\": \"success\"\n}"
+      },
+      "id": "node-log-to-gymflow",
+      "name": "Log Result in GymFlow DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 300]
+    }
+  ],
+  "connections": {
+    "Schedule: Daily at 9:00 AM": {
+      "main": [
+        [
+          {
+            "node": "GymFlow API: Fetch Members Expiring in 3 Days",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GymFlow API: Fetch Members Expiring in 3 Days": {
+      "main": [
+        [
+          {
+            "node": "Split Member List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Member List": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Cloud API: Send Renewal Notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Cloud API: Send Renewal Notice": {
+      "main": [
+        [
+          {
+            "node": "Log Result in GymFlow DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
